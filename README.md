@@ -44,5 +44,4 @@ The mod jar is produced in `build/libs/`.
 - [ ] Add admin commands for forced password reset and unlock.
 - [ ] Add optional IP/session caching with a short, configurable TTL.
 - [ ] Add GameTest or integration coverage for registration, login, lockout, and command blocking.
-- [ ] Add a secure import path for older Bukkit/Paper `config.yml` password data.
 - [ ] Add metrics-free audit logging for failed login bursts without writing raw passwords.
