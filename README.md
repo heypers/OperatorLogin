@@ -40,8 +40,8 @@ The mod jar is produced in `build/libs/`.
 ## TODO
 
 - [ ] Add configurable command aliases and localized messages.
-- [ ] Add optional two-step password registration (`/register <password> <repeatPassword>`).
+- [x] Add optional two-step password registration (`/register <password> <repeatPassword>`).
 - [ ] Add admin commands for forced password reset and unlock.
-- [ ] Add optional IP/session caching with a short, configurable TTL.
+- [x] Add optional IP/session caching with a short, configurable TTL.
 - [ ] Add GameTest or integration coverage for registration, login, lockout, and command blocking.
 - [ ] Add metrics-free audit logging for failed login bursts without writing raw passwords.
