@@ -1,59 +1,68 @@
 package org.heypers.operatorLogin.auth;
 
-import org.bukkit.configuration.file.FileConfiguration;
-import java.security.MessageDigest;
-import java.util.Base64;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 import java.util.UUID;
 
 
-public class AuthService {
-    private final FileConfiguration config;
+public final class AuthService {
+    private final Path passwordsFile;
+    private final Properties passwords = new Properties();
 
+    public AuthService(Path passwordsFile) {
+        this.passwordsFile = passwordsFile;
+        load();
+    }
 
-    public AuthService(FileConfiguration config) {
-        this.config = config;
+    public synchronized boolean hasPassword(UUID uuid) {
+        return passwords.containsKey(uuid.toString());
     }
 
 
-    public boolean hasPassword(UUID uuid) {
-        return config.contains("passwords." + uuid);
+    public synchronized void setPassword(UUID uuid, String rawPassword) {
+        passwords.setProperty(uuid.toString(), PasswordHasher.hash(rawPassword));
+        save();
     }
 
-
-    public boolean isHashed(String stored) {
-        return stored.startsWith("HASH:");
-    }
-
-
-    public void migrateIfNeeded(UUID uuid) {
-        String stored = config.getString("passwords." + uuid);
-        if (stored == null) return;
-        if (!isHashed(stored)) setPassword(uuid, stored);
-    }
-
-
-    public void setPassword(UUID uuid, String raw) {
-        String hash = hash(raw);
-        config.set("passwords." + uuid, "HASH:" + hash);
-    }
-
-
-    public boolean checkPassword(UUID uuid, String input) {
-        String stored = config.getString("passwords." + uuid);
-        if (stored == null) return false;
-        if (!isHashed(stored)) {
-            boolean ok = stored.equals(input);
-            if (ok) setPassword(uuid, input);
-            return ok;
+    public synchronized boolean checkPassword(UUID uuid, String input) {
+        String stored = passwords.getProperty(uuid.toString());
+        boolean matches = PasswordHasher.matches(input, stored);
+        if (matches && !PasswordHasher.isModernHash(stored)) {
+            setPassword(uuid, input);
         }
-        return stored.equals("HASH:" + hash(input));
+        return matches;
+    }
+
+    public synchronized void removePassword(UUID uuid){
+        passwords.remove(uuid.toString());
+        save();
     }
 
 
-    private String hash(String raw) {
+    private void load() {
+        if (!Files.exists(passwordsFile)) {
+            return;
+        }
+        try (InputStream input = Files.newInputStream(passwordsFile)) {
+            passwords.load(input);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to read OperatorLogin passwords", exception);
+        }
+    }
+
+
+    private void save() {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return Base64.getEncoder().encodeToString(md.digest(raw.getBytes()));
-        } catch (Exception e) { throw new RuntimeException(e); }
+            Files.createDirectories(passwordsFile.getParent());
+            try (OutputStream output = Files.newOutputStream(passwordsFile)) {
+                passwords.store(output, "OperatorLogin password hashes - do not edit or share");
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to save OperatorLogin passwords", exception);
+        }
     }
 }
