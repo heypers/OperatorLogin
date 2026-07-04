@@ -1,5 +1,6 @@
 package org.heypers.operatorLogin;
 
+import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -46,12 +47,51 @@ public final class OperatorLogin {
                         })));
 
         event.getDispatcher().register(Commands.literal("register")
-                .then(Commands.argument("password", StringArgumentType.greedyString())
+                .then(Commands.argument("password", StringArgumentType.string())
                         .executes(context -> {
+
                             ServerPlayer player = context.getSource().getPlayerOrException();
-                            loginManager.tryRegister(player, StringArgumentType.getString(context, "password"));
+                            player.sendSystemMessage(Component.literal("§cПожалуйста, введи повтор пароля. Используйте /register <пароль> <повтор пароля>."));
                             return 1;
-                        })));
+                        }))
+                .then(Commands.argument("password", StringArgumentType.string())
+                        .then(Commands.argument("repeatPassword", StringArgumentType.string())
+                                .executes(context -> {
+
+                                    String password = StringArgumentType.getString(context, "password");
+                                    String repeatPassword = StringArgumentType.getString(context, "repeatPassword");
+
+                                    ServerPlayer player = context.getSource().getPlayerOrException();
+
+                                    if (password.equals(repeatPassword)) {
+                                        loginManager.tryRegister(player, password);
+                                    } else {
+                                        player.sendSystemMessage(Component.literal("§cПовтор пароля и пароль не совпадают, пожалуйста попробуйте ещё раз."));
+                                    }
+
+                                    return 1;
+                                }))));
+    }
+
+    @SubscribeEvent
+    public void onResetPasswordCommand(RegisterCommandsEvent event){
+        event.getDispatcher().register(Commands.literal("resetpassword")
+                .then(Commands.argument("player", StringArgumentType.string())
+                .executes(context ->{
+
+                    ServerPlayer player = context.getSource().getServer().getPlayerList().getPlayerByName(StringArgumentType.getString(context, "player"));
+
+                    if (player != null) {
+                        if (authService.hasPassword(player.getUUID())) {
+                            authService.removePassword(player.getUUID());
+                            loginManager.removeSession(player);
+
+                            context.getSource().getPlayerOrException().sendSystemMessage(Component.literal("§aПароль был успешно сброшен!"));
+                        }
+                    }
+
+                  return 1;
+                })));
     }
 
     @SubscribeEvent

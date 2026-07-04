@@ -1,8 +1,10 @@
 package org.heypers.operatorLogin.manager;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.heypers.operatorLogin.auth.AuthService;
+import org.heypers.operatorLogin.auth.Session;
 import org.heypers.operatorLogin.config.OperatorLoginConfig;
 
 import java.time.Instant;
@@ -18,6 +20,7 @@ public final class LoginManager {
     private final OperatorLoginConfig config;
     private final Set<UUID> notLogged = new HashSet<>();
     private final Map<UUID, LoginState> loginStates = new HashMap<>();
+    private final Map<String, Session> sessions = new HashMap<>();
 
 
     public LoginManager(AuthService authService, OperatorLoginConfig config) {
@@ -35,13 +38,31 @@ public final class LoginManager {
         if (!needsLogin(player)) {
             return;
         }
+
+        if (config.allowSessions()) {
+            if (sessions.get(player.getIpAddress()) != null) {
+                if (player.getUUID().toString().equals(sessions.get(player.getIpAddress()).getPlayerUUID().toString())) {
+
+                    if (sessions.get(player.getIpAddress()).getLoginTime() > System.currentTimeMillis() - (config.sessionTime()*1000)) {
+                        return;
+                    } else {
+                        sessions.remove(player.getIpAddress());
+                    }
+                }
+            }
+        }
+
         notLogged.add(player.getUUID());
         loginStates.put(player.getUUID(), new LoginState(Instant.now().getEpochSecond(), 0, 0));
         if (authService.hasPassword(player.getUUID())) {
             player.sendSystemMessage(Component.literal("§eВведите пароль: /login <пароль>"));
         } else {
-            player.sendSystemMessage(Component.literal("§eУстановите пароль: /register <пароль>"));
+            player.sendSystemMessage(Component.literal("§eУстановите пароль: /register <пароль> <повтор пароля>"));
         }
+    }
+
+    public void removeSession(ServerPlayer player){
+        sessions.remove(player.getIpAddress());
     }
 
 
@@ -78,14 +99,17 @@ public final class LoginManager {
             return;
         }
         if (authService.hasPassword(player.getUUID())) {
-            player.sendSystemMessage(Component.literal("§cВы уже зарегистрированы. Используйте /login <пароль>."));
+            player.sendSystemMessage(Component.literal("§cВы уже зарегистрированы. Используйте /login <пароль> <повтор пароля>."));
             return;
         }
         if (!isPasswordStrongEnough(player, password)) {
             return;
         }
         authService.setPassword(player.getUUID(), password);
+
         completeLogin(player, "§aПароль установлен! Вы вошли.");
+
+        sessions.put(player.getIpAddress(), new Session(player.getUUID(), System.currentTimeMillis()));
     }
 
 
@@ -108,17 +132,27 @@ public final class LoginManager {
 
         if (authService.checkPassword(player.getUUID(), password)) {
             completeLogin(player, "§aУспешный вход!");
+
+            sessions.put(player.getIpAddress(), new Session(player.getUUID(), System.currentTimeMillis()));
+
             return;
         }
 
         int attempts = state.failedAttempts() + 1;
         long lockedUntil = attempts >= config.maxLoginAttempts() ? now + config.lockoutSeconds() : 0;
         loginStates.put(player.getUUID(), new LoginState(state.joinedAt(), attempts, lockedUntil));
+
         if (lockedUntil > 0) {
             player.sendSystemMessage(Component.literal("§cНеверный пароль. Вход заблокирован на " + config.lockoutSeconds() + " сек."));
+
+            if (now < state.joinedAt + 20 );{
+                LogUtils.getLogger().warn(player.getName().getString() + " ("+ player.getIpAddress() +") " + "tried to log in " + attempts + " times in " + (now - state.joinedAt) + "sec.");
+            }
+
         } else {
             player.sendSystemMessage(Component.literal("§cНеверный пароль! Осталось попыток: " + (config.maxLoginAttempts() - attempts)));
         }
+
     }
 
 

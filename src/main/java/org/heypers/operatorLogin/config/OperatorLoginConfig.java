@@ -15,6 +15,8 @@ public record OperatorLoginConfig(
         int minPasswordLength,
         int maxLoginAttempts,
         int lockoutSeconds,
+        boolean allowSessions,
+        long sessionTime,
         Path passwordsFile
 ) {
     private static final String CONFIG_FILE_NAME = "operatorlogin.properties";
@@ -39,6 +41,8 @@ public record OperatorLoginConfig(
                 intProperty(properties, "minPasswordLength", 8, 6, 128),
                 intProperty(properties, "maxLoginAttempts", 5, 1, 20),
                 intProperty(properties, "lockoutSeconds", 60, 5, 3600),
+                booleanProperty(properties, "allowSessions", true),
+                intProperty(properties, "sessionTime", 1800, 1, 5148000),
                 configDir.resolve(PASSWORDS_FILE_NAME)
         );
 
@@ -47,6 +51,8 @@ public record OperatorLoginConfig(
         properties.setProperty("minPasswordLength", Integer.toString(config.minPasswordLength()));
         properties.setProperty("maxLoginAttempts", Integer.toString(config.maxLoginAttempts()));
         properties.setProperty("lockoutSeconds", Integer.toString(config.lockoutSeconds()));
+        properties.setProperty("allowSessions", Boolean.toString(config.allowSessions()));
+        properties.setProperty("sessionTime", Long.toString(config.sessionTime()));
 
         try {
             Files.createDirectories(configDir);

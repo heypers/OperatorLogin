@@ -37,6 +37,11 @@ public final class AuthService {
         return matches;
     }
 
+    public synchronized void removePassword(UUID uuid){
+        passwords.remove(uuid.toString());
+        save();
+    }
+
 
     private void load() {
         if (!Files.exists(passwordsFile)) {
